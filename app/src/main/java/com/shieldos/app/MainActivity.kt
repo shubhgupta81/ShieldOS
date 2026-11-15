@@ -154,22 +154,22 @@ private data class Protection(
     val screening: Boolean,
     val screeningSupported: Boolean
 ) {
-    val callShield: Boolean get() = phone && (screening || !screeningSupported)
+    val callShield: Boolean get() = screening || !screeningSupported
     val activeShields: Int get() = listOf(sms, callShield, notifications).count { it }
     val allGranted: Boolean get() = activeShields == 3
 }
 
 private fun readProtection(context: Context): Protection {
-    fun granted(permission: String): Boolean =
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    val enabledListeners = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners").orEmpty()
+    val notifListenerActive = enabledListeners.contains(context.packageName)
 
     val screeningSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
     val screeningHeld = screeningSupported &&
         context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_CALL_SCREENING) == true
 
     return Protection(
-        sms = granted(Manifest.permission.RECEIVE_SMS) && granted(Manifest.permission.READ_SMS),
-        phone = granted(Manifest.permission.READ_PHONE_STATE) && granted(Manifest.permission.READ_CALL_LOG),
+        sms = notifListenerActive,
+        phone = screeningHeld,
         notifications = NotificationManagerCompat.from(context).areNotificationsEnabled(),
         screening = screeningHeld,
         screeningSupported = screeningSupported
@@ -212,23 +212,17 @@ private fun ShieldOSApp(resumeTick: Int) {
     }
 
     fun requestEverything() {
-        val needed = ArrayList<String>()
-        if (!protection.sms) {
-            needed.add(Manifest.permission.RECEIVE_SMS)
-            needed.add(Manifest.permission.READ_SMS)
-        }
-        if (!protection.phone) {
-            needed.add(Manifest.permission.READ_PHONE_STATE)
-            needed.add(Manifest.permission.READ_CALL_LOG)
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !protection.notifications) {
-            needed.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+            return
         }
-        if (needed.isNotEmpty()) {
-            permissionLauncher.launch(needed.toTypedArray())
-        } else {
-            val intent = roleIntent(context)
-            if (intent != null) roleLauncher.launch(intent)
+        val intent = roleIntent(context)
+        if (intent != null && !protection.screening) {
+            roleLauncher.launch(intent)
+            return
+        }
+        if (!protection.sms) {
+            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 
@@ -511,7 +505,7 @@ private fun PermissionCard(protection: Protection, onGrant: () -> Unit, onOpenSe
         )
         Spacer(Modifier.height(12.dp))
 
-        PermissionRow(Icons.Filled.Email, "SMS access", "Scan incoming texts for phishing", protection.sms)
+        PermissionRow(Icons.Filled.Email, "Message scanner", "Scan SMS, WhatsApp & Telegram", protection.sms)
         PermissionRow(Icons.Filled.Phone, "Phone and call log", "Know who is calling you", protection.phone)
         PermissionRow(
             Icons.Filled.Notifications,

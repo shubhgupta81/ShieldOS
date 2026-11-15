@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="false"
@@ -25,7 +20,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Real-time incoming call screening (needs the Call Screening role). -->
+        <!-- Google-approved Call Screening Service (No restricted permissions required) -->
         <service
             android:name=".ScamCallScreeningService"
             android:exported="true"
@@ -35,15 +30,16 @@
             </intent-filter>
         </service>
 
-        <!-- Real-time incoming SMS scanning. -->
-        <receiver
-            android:name=".SmsFraudReceiver"
+        <!-- Google-approved Notification Scanner for SMS, WhatsApp & Telegram -->
+        <service
+            android:name=".ScamNotificationService"
             android:exported="true"
-            android:permission="android.permission.BROADCAST_SMS">
-            <intent-filter android:priority="999">
-                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            android:label="ShieldOS Scam Scanner"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
-        </receiver>
+        </service>
 
     </application>
 </manifest>
